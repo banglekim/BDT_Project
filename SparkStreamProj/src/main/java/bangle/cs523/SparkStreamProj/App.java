@@ -26,7 +26,7 @@ import org.apache.spark.api.java.JavaSparkContext;
 import kafka.serializer.StringDecoder;
 
 /**
- * Project using Spark Stream and connected to HBase
+ * Project using Spark Stream, connects to Kafka to get data from, and HBase to store analyzed data
  * collect twitts discussing about Trump or Biden to see how people think and prepare for 2020 election
  */
 public class App 
@@ -50,7 +50,7 @@ public class App
 		String.class, StringDecoder.class, StringDecoder.class, kafkaParams, topics);
 		
 		// filter twitts relating to Trump or Biden
-		JavaDStream<String> lines = directKafkaStream.map(line -> {return line._2;}).filter(line -> (line.contains("Trump") || line.contains("Biden")));
+		JavaDStream<String> lines = directKafkaStream.map(line -> {return line._2();}).filter(line -> (line.contains("Trump") || line.contains("Biden")));
 		
 		// Connect and insert data into HBase
 		Configuration config = HBaseConfiguration.create();
@@ -76,25 +76,25 @@ public class App
 		
 		int[] index= {0};			
 		lines.foreachRDD(rdd -> {
-		    rdd.foreach(line -> {	
-				System.out.println(line);
-				hBaseWriter(dtTable, index[0], line, data_cf.getName());
+		    rdd.collect().forEach(line -> {	
+				try {
+					Put p = new Put(Bytes.toBytes(index[0]));
+			    	if (line.contains("Trump")) {
+			    		p.addColumn(Bytes.toBytes("name"), Bytes.toBytes("Name"),Bytes.toBytes("Trump"));
+			    	} else {
+			    		p.addColumn(name_cf.getName(), Bytes.toBytes("Name"),Bytes.toBytes("Biden"));	
+			    	}
+				    p.addColumn(data_cf.getName(), Bytes.toBytes("Twitt"),Bytes.toBytes(line));
+				    dtTable.put(p);
+				} catch (Exception e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 		    	index[0]++ ;
 			});
 		});
 		
 		ssc.start();
 		ssc.awaitTermination();
-    }
-    
-    private static void hBaseWriter(Table dtTable, int index, String data, byte[] columnFamily) throws IOException {
-    	Put p = new Put(Bytes.toBytes(index));
-    	if (data.contains("Trump")) {
-    		p.addColumn(Bytes.toBytes("name"), Bytes.toBytes("Name"),Bytes.toBytes("Trump"));
-    	} else {
-    		p.addColumn(Bytes.toBytes("name"), Bytes.toBytes("Name"),Bytes.toBytes("Biden"));	
-    	}
-	    p.addColumn(columnFamily, Bytes.toBytes("Twitt"),Bytes.toBytes(data));
-	    dtTable.put(p);
     }
 }
