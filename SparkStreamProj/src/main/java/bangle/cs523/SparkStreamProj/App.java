@@ -1,9 +1,10 @@
 package bangle.cs523.SparkStreamProj;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
@@ -17,88 +18,83 @@ import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.spark.SparkConf;
-import org.apache.spark.api.java.JavaPairRDD;
-import org.apache.spark.api.java.JavaRDD;
+import org.apache.spark.streaming.Duration;
+import org.apache.spark.streaming.api.java.*;
+import org.apache.spark.streaming.kafka.KafkaUtils;
 import org.apache.spark.api.java.JavaSparkContext;
 
-import scala.Tuple2;
+import kafka.serializer.StringDecoder;
 
 /**
  * Project using Spark Stream and connected to HBase
- *
+ * collect twitts discussing about Trump or Biden to see how people think and prepare for 2020 election
  */
 public class App 
 {
-	private static final String TABLE_NAME = "wordcounts";
-    public static void main( String[] args ) throws IOException
+	private static final String TABLE_NAME = "2020ElectionData";
+    public static void main( String[] args ) throws IOException, InterruptedException
     {
-    	// Create a Java Spark Context
-		JavaSparkContext sc = new JavaSparkContext(new SparkConf().setAppName("wordCount").setMaster("local"));
-
-		// Load our input data
-		JavaRDD<String> lines = sc.textFile(args[0]);
+    	// Create Kafka connection
+        SparkConf conf = new SparkConf()
+        .setAppName("kafka-consumer")
+        .setMaster("local[*]");
+		JavaSparkContext sc = new JavaSparkContext(conf);
+		JavaStreamingContext ssc = new JavaStreamingContext(sc, new Duration(2000));
 		
-		Integer threshold = Integer.parseInt(args[1]);
-
-		// Calculate word count
-		JavaPairRDD<String, Integer> counts = lines
-					.flatMap(line -> Arrays.asList(line.split(" ")))
-					.mapToPair(w -> new Tuple2<String, Integer>(w, 1))
-					.reduceByKey((x, y) -> x + y);
+		Map<String,String> kafkaParams = new HashMap<String,String>();
+		kafkaParams.put("metadata.broker.list", "localhost:9092");
 		
-		// Filter out words with count < threshold
-		List<Tuple2<String, Integer>> targetWordCounts = counts.filter(x -> x._2 >= threshold).collect();
+		Set<String> topics = Collections.singleton("KafkaData");
 		
-		List<Tuple2<Character, Integer>> tempList = new ArrayList<Tuple2<Character, Integer>>();
-		for (Tuple2<String, Integer> element: targetWordCounts) {
-			for (char c: element._1.toCharArray()) {
-				tempList.add(new Tuple2<Character, Integer>(c,element._2));
-			}
-		}
+		JavaPairInputDStream<String, String> directKafkaStream = KafkaUtils.createDirectStream(ssc,String.class,
+		String.class, StringDecoder.class, StringDecoder.class, kafkaParams, topics);
 		
-		JavaPairRDD<Character, Integer> rdd = sc.parallelizePairs(tempList);
-		
-		JavaPairRDD<Character, Integer> targetCharCounts = rdd.reduceByKey((x, y) -> x + y);
+		// filter twitts relating to Trump or Biden
+		JavaDStream<String> lines = directKafkaStream.map(line -> {return line._2;}).filter(line -> (line.contains("Trump") || line.contains("Biden")));
 		
 		// Connect and insert data into HBase
 		Configuration config = HBaseConfiguration.create();
 
-		try (Connection connection = ConnectionFactory.createConnection(config);
-				Admin admin = connection.getAdmin())
+		Connection connection = ConnectionFactory.createConnection(config);
+		Admin admin = connection.getAdmin();
+
+		HTableDescriptor tableDesc = new HTableDescriptor(TableName.valueOf(TABLE_NAME));
+		HColumnDescriptor name_cf = new HColumnDescriptor("name");
+		HColumnDescriptor data_cf = new HColumnDescriptor("data");
+		tableDesc.addFamily(name_cf);
+		tableDesc.addFamily(data_cf);
+
+		System.out.print("Creating HBase table.... ");
+
+		if (admin.tableExists(tableDesc.getTableName()))
 		{
-			HTableDescriptor tableDesc = new HTableDescriptor(TableName.valueOf(TABLE_NAME));
-			HColumnDescriptor word_cf = new HColumnDescriptor("word_data");
-			HColumnDescriptor count_cf = new HColumnDescriptor("count_data");
-			tableDesc.addFamily(word_cf);
-			tableDesc.addFamily(count_cf);
-
-			System.out.print("Question 1. Creating table.... ");
-
-			if (admin.tableExists(tableDesc.getTableName()))
-			{
-				admin.disableTable(tableDesc.getTableName());
-				admin.deleteTable(tableDesc.getTableName());
-			}
-			admin.createTable(tableDesc);
-			
-			System.out.println("Adding data...");
-			
-			Table wcTable = connection.getTable(tableDesc.getTableName());
-			
-			List<Tuple2<Character, Integer>> data = targetCharCounts.collect();
-			
-			for (int i =0; i< data.size(); i++) {			
-				Put p = new Put(Bytes.toBytes(i));
-				p.addColumn(word_cf.getName(), Bytes.toBytes("Character"),Bytes.toBytes(data.get(i)._1));
-			    p.addColumn(count_cf.getName(), Bytes.toBytes("Count"),Bytes.toBytes(data.get(i)._2.toString()));
-			    wcTable.put(p);
-			}
-		    
-		    System.out.println("data inserted successfully");
-
-			System.out.println(" Done!");
-			sc.close();
+			admin.disableTable(tableDesc.getTableName());
+			admin.deleteTable(tableDesc.getTableName());
 		}
+		admin.createTable(tableDesc);
+		Table dtTable = connection.getTable(tableDesc.getTableName());
 		
+		int[] index= {0};			
+		lines.foreachRDD(rdd -> {
+		    rdd.foreach(line -> {	
+				System.out.println(line);
+				hBaseWriter(dtTable, index[0], line, data_cf.getName());
+		    	index[0]++ ;
+			});
+		});
+		
+		ssc.start();
+		ssc.awaitTermination();
+    }
+    
+    private static void hBaseWriter(Table dtTable, int index, String data, byte[] columnFamily) throws IOException {
+    	Put p = new Put(Bytes.toBytes(index));
+    	if (data.contains("Trump")) {
+    		p.addColumn(Bytes.toBytes("name"), Bytes.toBytes("Name"),Bytes.toBytes("Trump"));
+    	} else {
+    		p.addColumn(Bytes.toBytes("name"), Bytes.toBytes("Name"),Bytes.toBytes("Biden"));	
+    	}
+	    p.addColumn(columnFamily, Bytes.toBytes("Twitt"),Bytes.toBytes(data));
+	    dtTable.put(p);
     }
 }
