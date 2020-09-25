@@ -2,6 +2,81 @@ package bangle.cs523.KafkaProducer;
 
 import java.util.Properties;
 
+import org.apache.kafka.clients.producer.Producer;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerRecord;
+
+/**
+ * Send data to Kafka project
+ *
+ */
+public class App 
+{
+    public static void main( String[] args )
+    {
+        final String topics = "KafkaData";
+        
+    	/*final String consumerKey = "pTU1OByDnzKIOwtf6X2rnlJcL";
+        final String consumerSecret = "ST7FIBCOq5jOLd7kkmMWDSvYyLarcXpIL4jWIRDbaA1YsaX9FV";        
+        final String accessToken = "1307923158108790785-RptNlWC6X8PHNgEAL0xGRXupSKr8yy";        
+        final String accessTokenSecret = "1TtcFleWObbWPlajCl2qk3xp7rtekQIZWr1bpDJmEpgzU";
+
+        
+        SparkConf conf = new SparkConf().setMaster("local[2]").setAppName("SparkTwitterProducer");
+        JavaStreamingContext jssc = new JavaStreamingContext(conf, new Duration(30000));
+
+        System.setProperty("twitter4j.oauth.consumerKey", consumerKey);
+        System.setProperty("twitter4j.oauth.consumerSecret", consumerSecret);
+        System.setProperty("twitter4j.oauth.accessToken", accessToken);
+        System.setProperty("twitter4j.oauth.accessTokenSecret", accessTokenSecret);
+        
+        JavaReceiverInputDStream<Status> twitterStream = TwitterUtils.createStream(jssc);
+        
+        final JavaDStream<Status> enTweetsDStream = twitterStream.filter((status) -> "en".equalsIgnoreCase(status.getLang()));
+        
+        final JavaDStream<String> statuses = enTweetsDStream.map(status -> status.getText());
+        
+        statuses.foreachRDD(rdd -> {
+		    rdd.collect().forEach(line -> {	
+		    	//producer.send(new ProducerRecord<String, String>(topics, Integer.toString(1), Integer.toString(1)));
+		    });
+        });
+       
+        jssc.start();
+        jssc.awaitTermination();   */          
+        
+        // create instance for properties to access producer configs   
+        Properties props = new Properties();
+        props.put("bootstrap.servers", "localhost:9092");     
+        props.put("acks", "all");
+        props.put("retries", 0);
+        props.put("batch.size", 16384);  
+        props.put("linger.ms", 1);   
+        props.put("buffer.memory", 33554432);
+        props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+        props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+        
+        Producer<String, String> producer = new KafkaProducer<String, String>(props);
+              
+        for(int i = 0; i < 100; i++) {
+           producer.send(new ProducerRecord<String, String>(topics, Integer.toString(i), Integer.toString(i)));
+        }
+        
+        for(int i = 200; i < 300; i++) {
+            producer.send(new ProducerRecord<String, String>(topics, Integer.toString(i), Integer.toString(i)));
+        }
+        
+        System.out.println("Message sent successfully");
+        producer.close();
+    }
+}
+
+
+/*
+package bangle.cs523.KafkaProducer;
+
+import java.util.Properties;
+
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.spark.*;
 import org.apache.spark.streaming.Duration;
@@ -20,7 +95,7 @@ import org.apache.kafka.clients.producer.ProducerRecord;
  * Integrated Spark and Twitter project
  *
  */
-public class App 
+/*public class App 
 {
     public static void main( String[] args )
     {
@@ -55,11 +130,6 @@ public class App
         props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
         
         Producer<String, String> producer = new KafkaProducer<String, String>(props);
-              
-        /*for(int i = 0; i < 10; i++) {
-           producer.send(new ProducerRecord<String, String>(topics, Integer.toString(i), Integer.toString(i)));
-           System.out.println("Message sent successfully");
-        }*/
         
         statuses.foreachRDD(rdd -> {
 		    rdd.foreach(line -> {	
@@ -73,3 +143,4 @@ public class App
         producer.close();
     }
 }
+*/
