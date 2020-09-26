@@ -6,7 +6,7 @@ Final project for Big Data Techniologies course using Spark Streaming, HBase, Ka
 - Start Kafka
 KAFKA_HOME=/home/cloudera/kafka_2.12-2.6.0; export KAFKA_HOME
 //Start Zookeeper server
-$KAFKA_HOME/bin/zookeeper-server-start.sh $KAFKA_HOME/config/zookeeper.properties 
+$KAFKA_HOME/bin/zookeeper-server-start.sh $KAFKA_HOME/config/zookeeper.properties
 //Start Kafka server
 $KAFKA_HOME/bin/kafka-server-start.sh $KAFKA_HOME/config/server.properties
 
