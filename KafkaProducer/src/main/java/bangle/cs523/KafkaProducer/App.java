@@ -16,35 +16,6 @@ public class App
     {
         final String topics = "KafkaData";
         
-    	/*final String consumerKey = "pTU1OByDnzKIOwtf6X2rnlJcL";
-        final String consumerSecret = "ST7FIBCOq5jOLd7kkmMWDSvYyLarcXpIL4jWIRDbaA1YsaX9FV";        
-        final String accessToken = "1307923158108790785-RptNlWC6X8PHNgEAL0xGRXupSKr8yy";        
-        final String accessTokenSecret = "1TtcFleWObbWPlajCl2qk3xp7rtekQIZWr1bpDJmEpgzU";
-
-        
-        SparkConf conf = new SparkConf().setMaster("local[2]").setAppName("SparkTwitterProducer");
-        JavaStreamingContext jssc = new JavaStreamingContext(conf, new Duration(30000));
-
-        System.setProperty("twitter4j.oauth.consumerKey", consumerKey);
-        System.setProperty("twitter4j.oauth.consumerSecret", consumerSecret);
-        System.setProperty("twitter4j.oauth.accessToken", accessToken);
-        System.setProperty("twitter4j.oauth.accessTokenSecret", accessTokenSecret);
-        
-        JavaReceiverInputDStream<Status> twitterStream = TwitterUtils.createStream(jssc);
-        
-        final JavaDStream<Status> enTweetsDStream = twitterStream.filter((status) -> "en".equalsIgnoreCase(status.getLang()));
-        
-        final JavaDStream<String> statuses = enTweetsDStream.map(status -> status.getText());
-        
-        statuses.foreachRDD(rdd -> {
-		    rdd.collect().forEach(line -> {	
-		    	//producer.send(new ProducerRecord<String, String>(topics, Integer.toString(1), Integer.toString(1)));
-		    });
-        });
-       
-        jssc.start();
-        jssc.awaitTermination();   */          
-        
         // create instance for properties to access producer configs   
         Properties props = new Properties();
         props.put("bootstrap.servers", "localhost:9092");     
