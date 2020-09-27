@@ -27,3 +27,6 @@ spark-submit --class "bangle.cs523.SparkStreamProj.App" --master yarn /home/clou
 spark-submit --class "bangle.cs523.KafkaProducer.App" --master yarn /home/cloudera/FinalProject/KafkaProducer/target/KafkaProducer-0.0.1-SNAPSHOT.jar
 
 - Check Hbase for result
+
+# MS Stream link
+https://web.microsoftstream.com/video/a97bb258-e7ca-48eb-84f3-2ca553fad99d
